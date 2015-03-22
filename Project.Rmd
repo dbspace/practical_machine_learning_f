@@ -1,0 +1,74 @@
+---
+title: "Practical Machine Learning"
+date: "March 21, 2015"
+output: html_document
+---
+###Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+
+In this report we will use data from accelerometers placed on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+###Loading and preprocessing the data
+The Training and Test data are download and put under the data directory of current working directory, we then load the training data first and perform data cleansing by removing columns that contains NAs and unrelated columns
+```{r}
+#assume training datafile and test file are download and put under data directory
+training_raw<-read.csv('data/pml-training.csv', na.strings= c("NA",""," ", "#DIV/0!"))
+#remove columns that has NA
+training_clean<-training_raw[ , ! apply( training_raw , 2 , function(x) any(is.na(x)) ) ]
+
+#remove unrelated column(X, username, timestamp etc)
+training_clean <- training_clean[8:length(training_clean)] 
+```
+
+###Model Creation
+We split the clean training data set into training and testing sets in a 70:30 ratio so that we can train the model and test the model against data it was not specifically fitted to
+```{r}
+library(caret)
+set.seed(1234)
+# split the clean training data into training and testing
+trainIndex <- createDataPartition(training_clean$classe, p = 0.7, list = FALSE)
+training <- training_clean[trainIndex, ]
+testing <- training_clean[-trainIndex, ]
+```
+A random forest model was selected to predict the classification because of its accuracy. 
+```{r}
+library(randomForest)
+# Use random Forest model to predict the classe with everything else as a predictor
+modFit <- randomForest(classe ~ ., data = training)
+modFit
+```
+
+The model has OOB estimate of error rate .51% which is good enough to progress for cross validation testing.
+```{r}
+# cross validate the model using the split testing data from training set 
+crossVal <- predict(modFit, testing)
+confusionMatrix(testing$classe, crossVal)
+```
+
+From Confusion Matrix and Statisics we can see the model yielded a 99.66% accuracy, which means the model proved is very robust and adequete to predict new data.
+
+###Predict on the test data
+The true test data set was then loaded into R and cleaned in the same manner as the training data set and use the model to predict the test data
+```{r}
+#Use the same way to clean the testing data
+testing_raw<-read.csv('data/pml-testing.csv', na.strings= c("NA",""," ", "#DIV/0!"))
+testing_clean<-testing_raw[ , ! apply( testing_raw , 2 , function(x) any(is.na(x)) )]
+testing_clean <- testing_clean[8:length(testing_clean)]
+
+# predict test set
+predictTest <- predict(modFit, testing_clean)
+```
+
+###Submission to Coursera
+```{r}
+#create the files for submission
+pml_write_files = function(x){
+        n = length(x)
+        for(i in 1:n){
+                filename = paste0("problem_id_",i,".txt")
+                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+        }
+}
+
+pml_write_files(as.character(predictTest))
+```
